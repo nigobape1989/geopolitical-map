@@ -26,14 +26,7 @@ export default function MapWrapper() {
   }
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden">
-      <div className="flex-1 relative">
-        <WorldMap
-          showBases={showBases}
-          showCommitments={showCommitments}
-          activeCommitments={activeCommitments}
-        />
-      </div>
+    <div style={{ display: "flex", height: "100vh", width: "100vw", overflow: "hidden" }}>
       <SidePanel
         showBases={showBases}
         setShowBases={setShowBases}
@@ -42,6 +35,13 @@ export default function MapWrapper() {
         activeCommitments={activeCommitments}
         toggleCommitment={toggleCommitment}
       />
+      <div style={{ flex: 1, position: "relative" }}>
+        <WorldMap
+          showBases={showBases}
+          showCommitments={showCommitments}
+          activeCommitments={activeCommitments}
+        />
+      </div>
     </div>
   );
 }

@@ -27,7 +27,7 @@ body {
 
 /* Override Leaflet default styles */
 .leaflet-container {
-  background: #ffffff !important;
+  background: #cbd5e1 !important;
 }
 
 .map-tooltip {

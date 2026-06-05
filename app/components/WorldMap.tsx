@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   MapContainer,
   TileLayer,
@@ -8,6 +8,7 @@ import {
   CircleMarker,
   Popup,
   Tooltip,
+  useMap,
 } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import type { Feature, GeoJsonObject } from "geojson";
@@ -21,28 +22,43 @@ interface Props {
   activeCommitments: Set<string>;
 }
 
-// Countries in each commitment keyed by commitment id
-function getCommitmentCountries(activeCommitments: Set<string>): Map<string, string[]> {
-  const map = new Map<string, string[]>();
+const DEFAULT_COMMITMENT_COLOR = "#3b82f6";
+
+function getFilledCountries(
+  showCommitments: boolean,
+  activeCommitments: Set<string>
+): Map<string, string> {
+  const countryColorMap = new Map<string, string>();
+  if (!showCommitments) return countryColorMap;
+
   for (const c of securityCommitments) {
-    if (activeCommitments.has(c.id)) {
-      map.set(c.id, c.countries);
+    const color =
+      activeCommitments.size === 0 || !activeCommitments.has(c.id)
+        ? DEFAULT_COMMITMENT_COLOR
+        : commitmentColors[c.id] || DEFAULT_COMMITMENT_COLOR;
+
+    for (const country of c.countries) {
+      countryColorMap.set(country.toLowerCase(), color);
     }
   }
-  return map;
+  return countryColorMap;
 }
 
 function countryStyle(
   feature: Feature | undefined,
-  commitmentMap: Map<string, string[]>
+  filledCountries: Map<string, string>
 ): PathOptions {
-  const name = feature?.properties?.ADMIN || feature?.properties?.name || "";
+  const name = (
+    feature?.properties?.ADMIN ||
+    feature?.properties?.name ||
+    ""
+  ).toLowerCase();
 
-  for (const [id, countries] of commitmentMap.entries()) {
-    if (countries.some(c => name.toLowerCase().includes(c.toLowerCase()) || c.toLowerCase().includes(name.toLowerCase()))) {
+  for (const [key, color] of filledCountries.entries()) {
+    if (name.includes(key) || key.includes(name)) {
       return {
-        fillColor: commitmentColors[id] || "#94a3b8",
-        fillOpacity: 0.35,
+        fillColor: color,
+        fillOpacity: 0.45,
         color: "#93c5fd",
         weight: 0.8,
       };
@@ -50,16 +66,45 @@ function countryStyle(
   }
 
   return {
-    fillColor: "#ffffff",
+    fillColor: "#f8fafc",
     fillOpacity: 1,
     color: "#93c5fd",
     weight: 0.5,
   };
 }
 
+function ShadowFilter() {
+  const map = useMap();
+  useEffect(() => {
+    const pane = map.getPanes().overlayPane;
+    if (!pane) return;
+    const svg = pane.querySelector("svg");
+    if (!svg) return;
+    let defs = svg.querySelector("defs");
+    if (!defs) {
+      defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
+      svg.insertBefore(defs, svg.firstChild);
+    }
+    const filter = document.createElementNS("http://www.w3.org/2000/svg", "filter");
+    filter.setAttribute("id", "continent-shadow");
+    filter.setAttribute("x", "-5%");
+    filter.setAttribute("y", "-5%");
+    filter.setAttribute("width", "110%");
+    filter.setAttribute("height", "110%");
+    filter.innerHTML = `
+      <feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="rgba(0,0,0,0.28)" result="shadow"/>
+      <feMerge><feMergeNode in="shadow"/><feMergeNode in="SourceGraphic"/></feMerge>
+    `;
+    if (!defs.querySelector("#continent-shadow")) {
+      defs.appendChild(filter);
+    }
+    (pane as HTMLElement).style.filter = "drop-shadow(0px 3px 6px rgba(0,0,0,0.22))";
+  }, [map]);
+  return null;
+}
+
 export default function WorldMap({ showBases, showCommitments, activeCommitments }: Props) {
   const [geoData, setGeoData] = useState<GeoJsonObject | null>(null);
-  const commitmentMap = getCommitmentCountries(activeCommitments);
 
   useEffect(() => {
     fetch("https://raw.githubusercontent.com/holtzy/D3-graph-gallery/master/DATA/world.geojson")
@@ -67,8 +112,10 @@ export default function WorldMap({ showBases, showCommitments, activeCommitments
       .then(setGeoData);
   }, []);
 
-  // key forces GeoJSON re-render when commitments change
-  const geoKey = Array.from(activeCommitments).sort().join(",");
+  const filledCountries = getFilledCountries(showCommitments, activeCommitments);
+  const geoKey = showCommitments
+    ? "on-" + Array.from(activeCommitments).sort().join(",")
+    : "off";
 
   return (
     <MapContainer
@@ -76,34 +123,39 @@ export default function WorldMap({ showBases, showCommitments, activeCommitments
       zoom={2.5}
       minZoom={2}
       maxZoom={8}
-      style={{ height: "100%", width: "100%", background: "#ffffff" }}
+      style={{ height: "100%", width: "100%", background: "#cbd5e1" }}
       worldCopyJump={false}
     >
-      {/* Blank white tile layer for ocean */}
       <TileLayer
-        url="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwADhQGAWjR9awAAAABJRU5ErkJggg=="
+        url="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
         attribution=""
+        opacity={0}
       />
+
+      <ShadowFilter />
 
       {geoData && (
         <GeoJSON
           key={geoKey}
           data={geoData}
-          style={(feature) => countryStyle(feature as Feature, commitmentMap)}
+          style={(feature) => countryStyle(feature as Feature, filledCountries)}
           onEachFeature={(feature, layer) => {
-            const name = feature.properties?.ADMIN || feature.properties?.name;
-            if (name && showCommitments) {
-              // Find which commitment this country belongs to
-              for (const [id] of commitmentMap.entries()) {
-                const commitment = securityCommitments.find(c => c.id === id);
-                const countries = commitmentMap.get(id) || [];
-                if (countries.some(c => name.toLowerCase().includes(c.toLowerCase()) || c.toLowerCase().includes(name.toLowerCase()))) {
+            if (!showCommitments) return;
+            const rawName = feature.properties?.ADMIN || feature.properties?.name || "";
+            const name = rawName.toLowerCase();
+            for (const [key] of filledCountries.entries()) {
+              if (name.includes(key) || key.includes(name)) {
+                const commitment = securityCommitments.find((c) =>
+                  c.countries.some((cn) => cn.toLowerCase() === key)
+                );
+                if (commitment) {
+                  const color = filledCountries.get(key) || DEFAULT_COMMITMENT_COLOR;
                   layer.bindTooltip(
-                    `<strong>${name}</strong><br/><span style="color:${commitmentColors[id]}">${commitment?.name}</span>`,
+                    `<strong>${rawName}</strong><br/><span style="color:${color}">${commitment.name}</span>`,
                     { sticky: true, className: "map-tooltip" }
                   );
-                  break;
                 }
+                break;
               }
             }
           }}
@@ -118,9 +170,9 @@ export default function WorldMap({ showBases, showCommitments, activeCommitments
             radius={5}
             pathOptions={{
               fillColor: "#dc2626",
-              fillOpacity: 0.9,
-              color: "#7f1d1d",
-              weight: 1,
+              fillOpacity: 0.92,
+              color: "#450a0a",
+              weight: 1.2,
             }}
           >
             <Popup>

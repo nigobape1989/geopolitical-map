@@ -1,13 +1,13 @@
 export interface SecurityCommitment {
   id: string;
   name: string;
-  type: "treaty" | "agreement" | "executive";
+  type: "treaty" | "agreement" | "executive" | "partnership";
   countries: string[];
   year: number;
-  article?: string; // The specific defense clause
+  article?: string;
   description: string;
+  strength: "full" | "strong" | "partial";  // full = automatic defense, strong = likely, partial = ambiguous
   wikipedia?: string;
-  // For drawing: country centroids (approximate)
   countryCentroids: { country: string; lat: number; lng: number }[];
 }
 
@@ -17,8 +17,9 @@ export const securityCommitments: SecurityCommitment[] = [
     name: "NATO",
     type: "treaty",
     year: 1949,
+    strength: "full",
     article: "Article 5 — collective defense",
-    description: "North Atlantic Treaty Organization. An attack on one member is an attack on all. The US is obligated to defend all 32 members.",
+    description: "North Atlantic Treaty Organization. An attack on any member is an attack on all 32 members. The most ironclad US defense commitment in existence.",
     wikipedia: "https://en.wikipedia.org/wiki/Article_5_of_the_North_Atlantic_Treaty",
     countries: [
       "Albania", "Belgium", "Bulgaria", "Canada", "Croatia", "Czech Republic",
@@ -67,8 +68,9 @@ export const securityCommitments: SecurityCommitment[] = [
     name: "US–Japan Security Treaty",
     type: "treaty",
     year: 1960,
+    strength: "full",
     article: "Article 5 — mutual defense",
-    description: "The Treaty of Mutual Cooperation and Security between the United States and Japan. The US is obligated to defend Japan. Japan hosts ~54,000 US troops.",
+    description: "The Treaty of Mutual Cooperation and Security. The US is legally obligated to defend Japan against armed attack. Japan hosts ~54,000 US troops, the largest overseas deployment.",
     wikipedia: "https://en.wikipedia.org/wiki/Treaty_of_Mutual_Cooperation_and_Security_between_the_United_States_and_Japan",
     countries: ["Japan"],
     countryCentroids: [{ country: "Japan", lat: 36.20, lng: 138.25 }],
@@ -78,8 +80,9 @@ export const securityCommitments: SecurityCommitment[] = [
     name: "US–South Korea Mutual Defense Treaty",
     type: "treaty",
     year: 1953,
+    strength: "full",
     article: "Article 3 — mutual defense",
-    description: "Signed after the Korean War armistice. The US is obligated to defend South Korea. ~28,500 US troops stationed there.",
+    description: "Signed after the Korean War armistice. The US is obligated to defend South Korea. ~28,500 US troops stationed there, anchored by Camp Humphreys — the largest US overseas base.",
     wikipedia: "https://en.wikipedia.org/wiki/Mutual_Defense_Treaty_Between_the_United_States_and_the_Republic_of_Korea",
     countries: ["South Korea"],
     countryCentroids: [{ country: "South Korea", lat: 35.91, lng: 127.77 }],
@@ -89,8 +92,9 @@ export const securityCommitments: SecurityCommitment[] = [
     name: "US–Philippines Mutual Defense Treaty",
     type: "treaty",
     year: 1951,
+    strength: "full",
     article: "Article 4 — mutual defense",
-    description: "Obligates the US to defend the Philippines against armed attack. Reaffirmed in 2023 to explicitly include South China Sea.",
+    description: "Obligates the US to defend the Philippines against armed attack. Reaffirmed in 2023 to explicitly cover the South China Sea and Philippine Coast Guard vessels.",
     wikipedia: "https://en.wikipedia.org/wiki/Mutual_Defense_Treaty_(United_States%E2%80%93Philippines)",
     countries: ["Philippines"],
     countryCentroids: [{ country: "Philippines", lat: 12.88, lng: 121.77 }],
@@ -100,8 +104,9 @@ export const securityCommitments: SecurityCommitment[] = [
     name: "ANZUS Treaty",
     type: "treaty",
     year: 1951,
+    strength: "full",
     article: "Article 4 — mutual defense",
-    description: "Security treaty between Australia, New Zealand, and the United States. NZ's obligations are suspended (1986) after nuclear dispute, but US–Australia commitments remain active.",
+    description: "Security treaty between Australia, New Zealand, and the US. US–NZ obligations were suspended in 1986 after New Zealand's nuclear-free policy. US–Australia obligations remain fully active. AUKUS (2021) further deepens the Australia commitment.",
     wikipedia: "https://en.wikipedia.org/wiki/ANZUS",
     countries: ["Australia", "New Zealand"],
     countryCentroids: [
@@ -114,32 +119,58 @@ export const securityCommitments: SecurityCommitment[] = [
     name: "Taiwan Relations Act",
     type: "agreement",
     year: 1979,
-    description: "Not a formal treaty, but the US considers any non-peaceful resolution of Taiwan's status a matter of 'grave concern' and is legally obligated to provide Taiwan with defensive arms. US policy of strategic ambiguity.",
+    strength: "strong",
+    description: "Not a mutual defense treaty. The US is legally required to provide Taiwan with defensive arms and considers any non-peaceful resolution of Taiwan's status a matter of 'grave concern.' Official policy is strategic ambiguity — the US has not formally committed to military intervention but has strong political and strategic incentives to defend Taiwan.",
     wikipedia: "https://en.wikipedia.org/wiki/Taiwan_Relations_Act",
     countries: ["Taiwan"],
     countryCentroids: [{ country: "Taiwan", lat: 23.70, lng: 120.96 }],
   },
   {
     id: "israel",
-    name: "US–Israel Memorandum of Understanding",
-    type: "agreement",
+    name: "US–Israel Security Partnership",
+    type: "partnership",
     year: 2016,
-    description: "The US provides $3.8B/year in military aid and has strong security commitments via MoUs, though no formal mutual defense treaty. US has pledged to ensure Israel's Qualitative Military Edge (QME).",
-    wikipedia: "https://en.wikipedia.org/wiki/United_States%E2%80%93Israel_relations",
+    strength: "partial",
+    description: "⚠️ No formal defense treaty. The US has no legal obligation to deploy forces to defend Israel, unlike NATO. The 2016 MOU provides $3.8B/year in military aid. The US-Israel Defense Partnership Act (2025) deepens cooperation but explicitly does not create a mutual defense obligation. The relationship rests on political commitment and shared interests, not treaty law.",
+    wikipedia: "https://en.wikipedia.org/wiki/Israel%E2%80%93United_States_military_relations",
     countries: ["Israel"],
     countryCentroids: [{ country: "Israel", lat: 31.05, lng: 34.85 }],
   },
   {
+    id: "qatar",
+    name: "Qatar Security Guarantee (Trump EO, 2025)",
+    type: "executive",
+    year: 2025,
+    strength: "full",
+    article: "Presidential Executive Order — military defense clause",
+    description: "In September 2025, following an Israeli strike on Hamas negotiators in Doha, Trump signed an executive order stating: 'The United States shall regard any armed attack on the territory, sovereignty, or critical infrastructure of Qatar as a threat to the peace and security of the United States' and pledged military measures to defend Qatar. Analysts described it as elevating Qatar to near-NATO status.",
+    wikipedia: "https://www.csis.org/analysis/why-trumps-executive-order-qatar-marks-historic-shift",
+    countries: ["Qatar"],
+    countryCentroids: [{ country: "Qatar", lat: 25.35, lng: 51.18 }],
+  },
+  {
+    id: "saudi_arabia",
+    name: "US–Saudi Strategic Defense Agreement (2025)",
+    type: "agreement",
+    year: 2025,
+    strength: "partial",
+    description: "⚠️ Ambiguous commitment. During MBS's November 2025 Washington visit, the US and Saudi Arabia signed a 'Strategic Defense Agreement.' Saudi Arabia sought a formal mutual defense treaty but the signed document lacks an explicit guarantee clause. Analysts note it follows the 'Qatar model' in structure but without the explicit defense pledge language. Commitment strength is disputed.",
+    wikipedia: "https://time.com/7335657/us-trump-saudi-defense-deal/",
+    countries: ["Saudi Arabia"],
+    countryCentroids: [{ country: "Saudi Arabia", lat: 23.89, lng: 45.08 }],
+  },
+  {
     id: "rio",
-    name: "Inter-American Treaty of Reciprocal Assistance (Rio Treaty)",
+    name: "Rio Treaty (Inter-American)",
     type: "treaty",
     year: 1947,
-    article: "Article 3 — mutual defense",
-    description: "Western Hemisphere collective defense treaty. An attack on any member is an attack on all. Several members have suspended participation. Signatories include most of Latin America.",
+    strength: "partial",
+    article: "Article 3 — collective defense",
+    description: "Western Hemisphere collective defense treaty. An attack on any member is an attack on all. Effectiveness is limited — several members have suspended participation (Venezuela, Bolivia, Nicaragua, Ecuador, Cuba). Rarely invoked in practice.",
     wikipedia: "https://en.wikipedia.org/wiki/Inter-American_Treaty_of_Reciprocal_Assistance",
     countries: [
       "Argentina", "Bolivia", "Brazil", "Chile", "Colombia", "Costa Rica",
-      "Cuba", "Dominican Republic", "Ecuador", "El Salvador", "Guatemala",
+      "Dominican Republic", "Ecuador", "El Salvador", "Guatemala",
       "Haiti", "Honduras", "Mexico", "Nicaragua", "Panama", "Paraguay",
       "Peru", "Trinidad and Tobago", "Uruguay", "Venezuela"
     ],
@@ -171,7 +202,8 @@ export const securityCommitments: SecurityCommitment[] = [
     name: "US–Kuwait Defense Cooperation Agreement",
     type: "agreement",
     year: 1991,
-    description: "Bilateral defense agreement allowing US military presence in Kuwait. Renewed multiple times. Kuwait hosts ~13,000 US troops.",
+    strength: "strong",
+    description: "Bilateral defense agreement established after Operation Desert Storm. Kuwait hosts ~13,000 US troops (Camp Arifjan). Renewed multiple times; Kuwait is a Major Non-NATO Ally.",
     wikipedia: "https://en.wikipedia.org/wiki/United_States%E2%80%93Kuwait_relations",
     countries: ["Kuwait"],
     countryCentroids: [{ country: "Kuwait", lat: 29.31, lng: 47.48 }],
@@ -181,7 +213,8 @@ export const securityCommitments: SecurityCommitment[] = [
     name: "US–Bahrain Defense Cooperation Agreement",
     type: "agreement",
     year: 1991,
-    description: "Bahrain hosts the US 5th Fleet and NAVCENT. Defense cooperation agreement renewed in 2021.",
+    strength: "strong",
+    description: "Bahrain hosts the US 5th Fleet and NAVCENT — critical for Persian Gulf operations. Defense cooperation agreement renewed in 2021. Bahrain is a Major Non-NATO Ally.",
     wikipedia: "https://en.wikipedia.org/wiki/United_States%E2%80%93Bahrain_relations",
     countries: ["Bahrain"],
     countryCentroids: [{ country: "Bahrain", lat: 26.07, lng: 50.55 }],
@@ -189,14 +222,22 @@ export const securityCommitments: SecurityCommitment[] = [
 ];
 
 export const commitmentColors: Record<string, string> = {
-  nato: "#3b82f6",          // blue
-  japan: "#ef4444",         // red
-  south_korea: "#f97316",   // orange
-  philippines: "#eab308",   // yellow
-  anzus: "#22c55e",         // green
-  taiwan: "#8b5cf6",        // purple
-  israel: "#06b6d4",        // cyan
-  rio: "#ec4899",           // pink
-  kuwait: "#f59e0b",        // amber
-  bahrain: "#10b981",       // emerald
+  nato: "#3b82f6",
+  japan: "#ef4444",
+  south_korea: "#f97316",
+  philippines: "#eab308",
+  anzus: "#22c55e",
+  taiwan: "#a855f7",
+  israel: "#f43f5e",
+  qatar: "#06b6d4",
+  saudi_arabia: "#f59e0b",
+  rio: "#ec4899",
+  kuwait: "#10b981",
+  bahrain: "#8b5cf6",
+};
+
+export const strengthLabels: Record<string, { label: string; color: string }> = {
+  full: { label: "Defense Guarantee", color: "#22c55e" },
+  strong: { label: "Strong Commitment", color: "#f59e0b" },
+  partial: { label: "Ambiguous / No Guarantee", color: "#f43f5e" },
 };
