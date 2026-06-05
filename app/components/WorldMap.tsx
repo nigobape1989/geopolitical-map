@@ -17,21 +17,22 @@ import type { Feature, GeoJsonObject } from "geojson";
 import type { PathOptions } from "leaflet";
 import { militaryBases } from "../data/militaryBases";
 import { securityCommitments, commitmentColors } from "../data/securityCommitments";
+import { nuclearPowers, nuclearStatusColors } from "../data/nuclearPowers";
+import { matchesCountry } from "../utils/countryMatch";
 
 interface Props {
   showBases: boolean;
   showCommitments: boolean;
   activeCommitments: Set<string>;
+  showNuclear: boolean;
 }
 
 const DEFAULT_COMMITMENT_COLOR = "#3b82f6";
 
-// Countries that should show labels even at low zoom (very large countries)
 const HUGE_COUNTRIES = new Set([
   "Russia", "Canada", "United States of America", "China", "Brazil",
   "Australia", "India", "Argentina", "Kazakhstan", "Algeria",
 ]);
-// Medium-large countries visible at zoom 3+
 const LARGE_COUNTRIES = new Set([
   ...HUGE_COUNTRIES,
   "Greenland", "Saudi Arabia", "Mexico", "Indonesia", "Sudan",
@@ -42,40 +43,46 @@ const LARGE_COUNTRIES = new Set([
   "Pakistan", "Democratic Republic of the Congo",
 ]);
 
-function getFilledCountries(
-  showCommitments: boolean,
-  activeCommitments: Set<string>
-): Map<string, string> {
+function getFilledCountries(showCommitments: boolean, activeCommitments: Set<string>): Map<string, string> {
   const map = new Map<string, string>();
   if (!showCommitments) return map;
   for (const c of securityCommitments) {
-    const color =
-      activeCommitments.size === 0 || !activeCommitments.has(c.id)
-        ? DEFAULT_COMMITMENT_COLOR
-        : commitmentColors[c.id] || DEFAULT_COMMITMENT_COLOR;
+    const color = activeCommitments.size === 0 || !activeCommitments.has(c.id)
+      ? DEFAULT_COMMITMENT_COLOR
+      : commitmentColors[c.id] || DEFAULT_COMMITMENT_COLOR;
     for (const country of c.countries) {
-      map.set(country.toLowerCase(), color);
+      map.set(country, color);
     }
   }
   return map;
 }
 
-function countryStyle(
-  feature: Feature | undefined,
-  filledCountries: Map<string, string>
-): PathOptions {
-  const name = (
-    feature?.properties?.ADMIN || feature?.properties?.name || ""
-  ).toLowerCase();
+function commitmentStyle(feature: Feature | undefined, filledCountries: Map<string, string>): PathOptions {
+  const name = feature?.properties?.ADMIN || feature?.properties?.name || "";
   for (const [key, color] of filledCountries.entries()) {
-    if (name === key || name.includes(key) || key.includes(name)) {
+    if (matchesCountry(name, key)) {
       return { fillColor: color, fillOpacity: 0.4, color: "#93c5fd", weight: 0.8 };
     }
   }
   return { fillColor: "#f8fafc", fillOpacity: 1, color: "#93c5fd", weight: 0.5 };
 }
 
-// ── Shadow on continent overlay pane ────────────────────────────────────────
+function nuclearStyle(feature: Feature | undefined): PathOptions {
+  const name = feature?.properties?.ADMIN || feature?.properties?.name || "";
+  for (const np of nuclearPowers) {
+    if (matchesCountry(name, np.country)) {
+      return {
+        fillColor: nuclearStatusColors[np.status],
+        fillOpacity: 0.55,
+        color: nuclearStatusColors[np.status],
+        weight: 1.2,
+      };
+    }
+  }
+  return { fillColor: "#f8fafc", fillOpacity: 1, color: "#93c5fd", weight: 0.5 };
+}
+
+// ── Drop shadow on overlay pane ───────────────────────────────────────────────
 function ContinentShadow() {
   const map = useMap();
   useEffect(() => {
@@ -94,24 +101,26 @@ function CountryLabels({ geoData }: { geoData: GeoJsonObject | null }) {
     if (!geoRef.current) return;
     const zoom = map.getZoom();
     geoRef.current.eachLayer((layer) => {
-      const l = layer as L.Path & { feature?: Feature; openTooltip?: () => void; closeTooltip?: () => void; getTooltip?: () => L.Tooltip | undefined };
+      const l = layer as L.Path & {
+        feature?: Feature;
+        openTooltip?: () => void;
+        closeTooltip?: () => void;
+        getTooltip?: () => L.Tooltip | undefined;
+      };
       if (!l.getTooltip?.()) return;
       const name: string = l.feature?.properties?.ADMIN || l.feature?.properties?.name || "";
-      let show = false;
-      if (zoom >= 5) show = true;
-      else if (zoom >= 4) show = true;
-      else if (zoom >= 3) show = LARGE_COUNTRIES.has(name);
-      else show = HUGE_COUNTRIES.has(name);
+      const show =
+        zoom >= 5 ||
+        (zoom >= 4) ||
+        (zoom >= 3 && LARGE_COUNTRIES.has(name)) ||
+        (zoom < 3 && HUGE_COUNTRIES.has(name));
       if (show) l.openTooltip?.();
       else l.closeTooltip?.();
     });
   }, [map]);
 
   useMapEvents({ zoomend: updateVisibility });
-
-  useEffect(() => {
-    if (geoData) setTimeout(updateVisibility, 300);
-  }, [geoData, updateVisibility]);
+  useEffect(() => { if (geoData) setTimeout(updateVisibility, 300); }, [geoData, updateVisibility]);
 
   if (!geoData) return null;
 
@@ -136,8 +145,8 @@ function CountryLabels({ geoData }: { geoData: GeoJsonObject | null }) {
   );
 }
 
-// ── Main map ─────────────────────────────────────────────────────────────────
-export default function WorldMap({ showBases, showCommitments, activeCommitments }: Props) {
+// ── Main component ────────────────────────────────────────────────────────────
+export default function WorldMap({ showBases, showCommitments, activeCommitments, showNuclear }: Props) {
   const [geoState, setGeoState] = useState<GeoJsonObject | null>(null);
 
   useEffect(() => {
@@ -147,7 +156,7 @@ export default function WorldMap({ showBases, showCommitments, activeCommitments
   }, []);
 
   const filledCountries = getFilledCountries(showCommitments, activeCommitments);
-  const geoKey = showCommitments
+  const commitmentKey = showCommitments
     ? "on-" + Array.from(activeCommitments).sort().join(",")
     : "off";
 
@@ -168,20 +177,19 @@ export default function WorldMap({ showBases, showCommitments, activeCommitments
 
       <ContinentShadow />
 
-      {/* Country fill + borders */}
+      {/* Base countries layer (white fill + light blue borders) */}
       {geoState && (
         <GeoJSON
-          key={geoKey}
+          key={commitmentKey}
           data={geoState}
-          style={(feature) => countryStyle(feature as Feature, filledCountries)}
+          style={(f) => commitmentStyle(f as Feature, filledCountries)}
           onEachFeature={(feature, layer) => {
             if (!showCommitments) return;
             const rawName = feature.properties?.ADMIN || feature.properties?.name || "";
-            const name = rawName.toLowerCase();
             for (const [key] of filledCountries.entries()) {
-              if (name === key || name.includes(key) || key.includes(name)) {
+              if (matchesCountry(rawName, key)) {
                 const commitment = securityCommitments.find((c) =>
-                  c.countries.some((cn) => cn.toLowerCase() === key)
+                  c.countries.some((cn) => matchesCountry(cn, rawName))
                 );
                 if (commitment) {
                   const color = filledCountries.get(key) || DEFAULT_COMMITMENT_COLOR;
@@ -197,6 +205,27 @@ export default function WorldMap({ showBases, showCommitments, activeCommitments
         />
       )}
 
+      {/* Nuclear overlay — separate layer on top */}
+      {geoState && showNuclear && (
+        <GeoJSON
+          key={"nuclear"}
+          data={geoState}
+          style={(f) => nuclearStyle(f as Feature)}
+          onEachFeature={(feature, layer) => {
+            const rawName = feature.properties?.ADMIN || feature.properties?.name || "";
+            const np = nuclearPowers.find((n) => matchesCountry(rawName, n.country));
+            if (!np) return;
+            const color = nuclearStatusColors[np.status];
+            layer.bindTooltip(
+              `<strong>${rawName}</strong><br/>
+               <span style="color:${color};font-weight:600">${np.status === "p5" ? "NPT P5" : np.status === "declared" ? "Declared (non-NPT)" : np.status === "undeclared" ? "Undeclared / Presumed" : "NATO Nuclear Sharing"}</span>
+               ${np.warheads ? `<br/>~${np.warheads.toLocaleString()} warheads` : ""}`,
+              { sticky: true, className: "map-tooltip" }
+            );
+          }}
+        />
+      )}
+
       {/* Country labels */}
       <CountryLabels geoData={geoState} />
 
@@ -205,8 +234,7 @@ export default function WorldMap({ showBases, showCommitments, activeCommitments
         militaryBases.map((base, i) => {
           const radius = base.prominent ? 7 : 5;
           const color = base.withdrawn ? "#6b7280" : "#dc2626";
-          const borderColor = base.withdrawn ? "#374151" : "#450a0a";
-          const glowColor = base.withdrawn ? "none" : "rgba(220,38,38,0.4)";
+          const border = base.withdrawn ? "#374151" : "#450a0a";
           return (
             <CircleMarker
               key={i}
@@ -215,21 +243,21 @@ export default function WorldMap({ showBases, showCommitments, activeCommitments
               pathOptions={{
                 fillColor: color,
                 fillOpacity: base.withdrawn ? 0.5 : 0.92,
-                color: borderColor,
+                color: border,
                 weight: 1.2,
               }}
             >
               <Popup>
                 <div className="text-sm">
                   <div className={`font-bold mb-1 ${base.withdrawn ? "text-gray-500" : "text-red-700"}`}>
-                    {base.withdrawn && <span className="text-xs bg-gray-200 text-gray-600 px-1 rounded mr-1">WITHDRAWN</span>}
+                    {base.withdrawn && (
+                      <span className="text-xs bg-gray-200 text-gray-600 px-1 rounded mr-1">WITHDRAWN</span>
+                    )}
                     {base.name}
                   </div>
                   <div className="text-gray-600">{base.country}</div>
                   {base.personnel && (
-                    <div className="text-gray-700 mt-1">
-                      ~{base.personnel.toLocaleString()} personnel
-                    </div>
+                    <div className="text-gray-700 mt-1">~{base.personnel.toLocaleString()} personnel</div>
                   )}
                   {base.notes && (
                     <div className="text-gray-500 mt-1 italic text-xs">{base.notes}</div>

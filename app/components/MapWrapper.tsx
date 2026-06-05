@@ -10,6 +10,7 @@ export default function MapWrapper() {
   const [showBases, setShowBases] = useState(false);
   const [showCommitments, setShowCommitments] = useState(false);
   const [activeCommitments, setActiveCommitments] = useState<Set<string>>(new Set());
+  const [showNuclear, setShowNuclear] = useState(false);
 
   function toggleCommitment(id: string) {
     setActiveCommitments((prev) => {
@@ -34,12 +35,15 @@ export default function MapWrapper() {
         setShowCommitments={handleShowCommitments}
         activeCommitments={activeCommitments}
         toggleCommitment={toggleCommitment}
+        showNuclear={showNuclear}
+        setShowNuclear={setShowNuclear}
       />
       <div style={{ flex: 1, position: "relative" }}>
         <WorldMap
           showBases={showBases}
           showCommitments={showCommitments}
           activeCommitments={activeCommitments}
+          showNuclear={showNuclear}
         />
       </div>
     </div>

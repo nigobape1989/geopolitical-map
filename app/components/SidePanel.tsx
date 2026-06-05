@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { securityCommitments, commitmentColors, strengthLabels } from "../data/securityCommitments";
 import { militaryBases } from "../data/militaryBases";
+import { nuclearPowers, nuclearStatusColors, nuclearStatusLabels, type NuclearStatus } from "../data/nuclearPowers";
 
 interface Props {
   showBases: boolean;
@@ -11,6 +12,8 @@ interface Props {
   setShowCommitments: (v: boolean) => void;
   activeCommitments: Set<string>;
   toggleCommitment: (id: string) => void;
+  showNuclear: boolean;
+  setShowNuclear: (v: boolean) => void;
 }
 
 const totalBases = militaryBases.filter((b) => !b.withdrawn).length;
@@ -18,6 +21,7 @@ const withdrawnBases = militaryBases.filter((b) => b.withdrawn).length;
 
 export default function SidePanel(props: Props) {
   const [usOpen, setUsOpen] = useState(true);
+  const [globalOpen, setGlobalOpen] = useState(true);
 
   return (
     <aside
@@ -55,6 +59,22 @@ export default function SidePanel(props: Props) {
 
       {/* Scrollable body */}
       <div style={{ flex: 1, overflowY: "auto", padding: "8px 0 16px" }}>
+
+        {/* ── Global Overlays ── */}
+        <CountrySection
+          flag="🌐"
+          name="Global Overlays"
+          open={globalOpen}
+          onToggle={() => setGlobalOpen((v) => !v)}
+          accentColor="#a855f7"
+        >
+          <NuclearContent
+            showNuclear={props.showNuclear}
+            setShowNuclear={props.setShowNuclear}
+          />
+        </CountrySection>
+
+        <div style={{ height: 1, background: "rgba(148,163,184,0.07)", margin: "2px 16px" }} />
 
         {/* ── United States ── */}
         <CountrySection
@@ -334,6 +354,93 @@ function CommitmentCard({
               Source / Wikipedia →
             </a>
           )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Nuclear Powers content ────────────────────────────────────────────────────
+function NuclearContent({
+  showNuclear, setShowNuclear,
+}: { showNuclear: boolean; setShowNuclear: (v: boolean) => void }) {
+  const [open, setOpen] = useState(true);
+  const [expanded, setExpanded] = useState<string | null>(null);
+
+  const byStatus = (status: NuclearStatus) => nuclearPowers.filter((n) => n.status === status);
+
+  return (
+    <div style={{ padding: "8px 0" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: open ? 10 : 0 }}>
+        <button
+          onClick={() => setOpen((v) => !v)}
+          style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", gap: 7, flex: 1, textAlign: "left" }}
+        >
+          <span style={{ fontSize: 13, color: "#a855f7" }}>☢</span>
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: "#e2e8f0" }}>Nuclear Powers</div>
+            <div style={{ fontSize: 10, color: "#475569", marginTop: 1 }}>
+              {showNuclear ? `${nuclearPowers.length} states · 4 categories` : "Hidden"}
+            </div>
+          </div>
+          <span style={{ fontSize: 8, color: "#334155", transform: open ? "rotate(90deg)" : "rotate(0)", transition: "transform 0.15s", display: "inline-block", marginLeft: 4 }}>▶</span>
+        </button>
+        <Toggle checked={showNuclear} onChange={setShowNuclear} color="#a855f7" />
+      </div>
+
+      {open && showNuclear && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {(["p5", "declared", "undeclared", "sharing"] as NuclearStatus[]).map((status) => {
+            const countries = byStatus(status);
+            const color = nuclearStatusColors[status];
+            return (
+              <div key={status} style={{ borderRadius: 9, border: `1px solid ${color}25`, background: `${color}0a`, overflow: "hidden" }}>
+                {/* Category header */}
+                <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px 6px" }}>
+                  <span style={{ width: 10, height: 10, borderRadius: 3, background: color, opacity: 0.9, flexShrink: 0, display: "inline-block" }} />
+                  <span style={{ fontSize: 11, fontWeight: 600, color, flex: 1 }}>{nuclearStatusLabels[status]}</span>
+                </div>
+                {/* Country list */}
+                <div style={{ padding: "0 10px 8px", display: "flex", flexDirection: "column", gap: 3 }}>
+                  {countries.map((np) => (
+                    <div key={np.country} style={{ borderRadius: 6, overflow: "hidden" }}>
+                      <button
+                        onClick={() => setExpanded(expanded === np.country ? null : np.country)}
+                        style={{
+                          width: "100%", border: "none", cursor: "pointer",
+                          padding: "5px 8px", display: "flex", alignItems: "center", gap: 8, textAlign: "left",
+                          borderRadius: 6,
+                          background: expanded === np.country ? `${color}12` : "transparent",
+                        }}
+                      >
+                        <span style={{ fontSize: 11, color: "#cbd5e1", flex: 1, fontWeight: 500 }}>{np.country === "United States of America" ? "United States" : np.country}</span>
+                        {np.warheads && (
+                          <span style={{ fontSize: 10, color: color, fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
+                            ~{np.warheads.toLocaleString()}
+                          </span>
+                        )}
+                        {np.firstTest && (
+                          <span style={{ fontSize: 9, color: "#475569" }}>{np.firstTest}</span>
+                        )}
+                        <span style={{ fontSize: 7, color: "#334155", transform: expanded === np.country ? "rotate(90deg)" : "rotate(0)", display: "inline-block", transition: "transform 0.13s" }}>▶</span>
+                      </button>
+                      {expanded === np.country && (
+                        <div style={{ padding: "4px 8px 8px", background: `${color}0d` }}>
+                          <p style={{ fontSize: 11, color: "#64748b", lineHeight: 1.6, margin: 0 }}>{np.notes}</p>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+
+          {/* Total warhead note */}
+          <p style={{ fontSize: 10, color: "#334155", lineHeight: 1.5, margin: "0 2px", fontStyle: "italic" }}>
+            ~12,500 nuclear warheads exist globally. ~90% held by Russia and the US.
+            Sources: SIPRI 2024, FAS Nuclear Notebook.
+          </p>
         </div>
       )}
     </div>

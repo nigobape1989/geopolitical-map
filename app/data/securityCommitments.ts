@@ -27,7 +27,8 @@ export const securityCommitments: SecurityCommitment[] = [
       "Hungary", "Iceland", "Italy", "Latvia", "Lithuania", "Luxembourg",
       "Montenegro", "Netherlands", "North Macedonia", "Norway", "Poland",
       "Portugal", "Romania", "Slovakia", "Slovenia", "Spain", "Sweden",
-      "Turkey", "United Kingdom"
+      "Turkey", "United Kingdom",
+      "Greenland", // autonomous territory of Denmark — covered by Article 5
     ],
     countryCentroids: [
       { country: "Albania", lat: 41.15, lng: 20.17 },
@@ -61,6 +62,7 @@ export const securityCommitments: SecurityCommitment[] = [
       { country: "Sweden", lat: 60.13, lng: 18.64 },
       { country: "Turkey", lat: 38.96, lng: 35.24 },
       { country: "United Kingdom", lat: 55.38, lng: -3.44 },
+      { country: "Greenland", lat: 72.00, lng: -42.00 },
     ],
   },
   {
