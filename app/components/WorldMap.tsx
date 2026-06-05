@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useCallback, useState } from "react";
 import {
   MapContainer,
   TileLayer,
@@ -9,7 +9,9 @@ import {
   Popup,
   Tooltip,
   useMap,
+  useMapEvents,
 } from "react-leaflet";
+import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import type { Feature, GeoJsonObject } from "geojson";
 import type { PathOptions } from "leaflet";
@@ -24,24 +26,38 @@ interface Props {
 
 const DEFAULT_COMMITMENT_COLOR = "#3b82f6";
 
+// Countries that should show labels even at low zoom (very large countries)
+const HUGE_COUNTRIES = new Set([
+  "Russia", "Canada", "United States of America", "China", "Brazil",
+  "Australia", "India", "Argentina", "Kazakhstan", "Algeria",
+]);
+// Medium-large countries visible at zoom 3+
+const LARGE_COUNTRIES = new Set([
+  ...HUGE_COUNTRIES,
+  "Greenland", "Saudi Arabia", "Mexico", "Indonesia", "Sudan",
+  "Libya", "Iran", "Mongolia", "Peru", "Chad", "Niger", "Angola",
+  "Mali", "South Africa", "Colombia", "Ethiopia", "Bolivia",
+  "Mauritania", "Egypt", "Nigeria", "Mozambique", "Zambia", "Turkey",
+  "Ukraine", "France", "Germany", "United Kingdom", "Spain", "Japan",
+  "Pakistan", "Democratic Republic of the Congo",
+]);
+
 function getFilledCountries(
   showCommitments: boolean,
   activeCommitments: Set<string>
 ): Map<string, string> {
-  const countryColorMap = new Map<string, string>();
-  if (!showCommitments) return countryColorMap;
-
+  const map = new Map<string, string>();
+  if (!showCommitments) return map;
   for (const c of securityCommitments) {
     const color =
       activeCommitments.size === 0 || !activeCommitments.has(c.id)
         ? DEFAULT_COMMITMENT_COLOR
         : commitmentColors[c.id] || DEFAULT_COMMITMENT_COLOR;
-
     for (const country of c.countries) {
-      countryColorMap.set(country.toLowerCase(), color);
+      map.set(country.toLowerCase(), color);
     }
   }
-  return countryColorMap;
+  return map;
 }
 
 function countryStyle(
@@ -49,67 +65,85 @@ function countryStyle(
   filledCountries: Map<string, string>
 ): PathOptions {
   const name = (
-    feature?.properties?.ADMIN ||
-    feature?.properties?.name ||
-    ""
+    feature?.properties?.ADMIN || feature?.properties?.name || ""
   ).toLowerCase();
-
   for (const [key, color] of filledCountries.entries()) {
-    if (name.includes(key) || key.includes(name)) {
-      return {
-        fillColor: color,
-        fillOpacity: 0.45,
-        color: "#93c5fd",
-        weight: 0.8,
-      };
+    if (name === key || name.includes(key) || key.includes(name)) {
+      return { fillColor: color, fillOpacity: 0.4, color: "#93c5fd", weight: 0.8 };
     }
   }
-
-  return {
-    fillColor: "#f8fafc",
-    fillOpacity: 1,
-    color: "#93c5fd",
-    weight: 0.5,
-  };
+  return { fillColor: "#f8fafc", fillOpacity: 1, color: "#93c5fd", weight: 0.5 };
 }
 
-function ShadowFilter() {
+// ── Shadow on continent overlay pane ────────────────────────────────────────
+function ContinentShadow() {
   const map = useMap();
   useEffect(() => {
-    const pane = map.getPanes().overlayPane;
-    if (!pane) return;
-    const svg = pane.querySelector("svg");
-    if (!svg) return;
-    let defs = svg.querySelector("defs");
-    if (!defs) {
-      defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
-      svg.insertBefore(defs, svg.firstChild);
-    }
-    const filter = document.createElementNS("http://www.w3.org/2000/svg", "filter");
-    filter.setAttribute("id", "continent-shadow");
-    filter.setAttribute("x", "-5%");
-    filter.setAttribute("y", "-5%");
-    filter.setAttribute("width", "110%");
-    filter.setAttribute("height", "110%");
-    filter.innerHTML = `
-      <feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="rgba(0,0,0,0.28)" result="shadow"/>
-      <feMerge><feMergeNode in="shadow"/><feMergeNode in="SourceGraphic"/></feMerge>
-    `;
-    if (!defs.querySelector("#continent-shadow")) {
-      defs.appendChild(filter);
-    }
-    (pane as HTMLElement).style.filter = "drop-shadow(0px 3px 6px rgba(0,0,0,0.22))";
+    const pane = map.getPanes().overlayPane as HTMLElement | undefined;
+    if (pane) pane.style.filter = "drop-shadow(0px 4px 8px rgba(0,0,0,0.24))";
   }, [map]);
   return null;
 }
 
+// ── Country label layer ───────────────────────────────────────────────────────
+function CountryLabels({ geoData }: { geoData: GeoJsonObject | null }) {
+  const map = useMap();
+  const geoRef = useRef<L.GeoJSON | null>(null);
+
+  const updateVisibility = useCallback(() => {
+    if (!geoRef.current) return;
+    const zoom = map.getZoom();
+    geoRef.current.eachLayer((layer) => {
+      const l = layer as L.Path & { feature?: Feature; openTooltip?: () => void; closeTooltip?: () => void; getTooltip?: () => L.Tooltip | undefined };
+      if (!l.getTooltip?.()) return;
+      const name: string = l.feature?.properties?.ADMIN || l.feature?.properties?.name || "";
+      let show = false;
+      if (zoom >= 5) show = true;
+      else if (zoom >= 4) show = true;
+      else if (zoom >= 3) show = LARGE_COUNTRIES.has(name);
+      else show = HUGE_COUNTRIES.has(name);
+      if (show) l.openTooltip?.();
+      else l.closeTooltip?.();
+    });
+  }, [map]);
+
+  useMapEvents({ zoomend: updateVisibility });
+
+  useEffect(() => {
+    if (geoData) setTimeout(updateVisibility, 300);
+  }, [geoData, updateVisibility]);
+
+  if (!geoData) return null;
+
+  return (
+    <GeoJSON
+      ref={(r) => { geoRef.current = r; }}
+      data={geoData}
+      style={() => ({ weight: 0, opacity: 0, fillOpacity: 0 })}
+      onEachFeature={(feature, layer) => {
+        const name = feature.properties?.ADMIN || feature.properties?.name;
+        if (!name) return;
+        (layer as L.Path).bindTooltip(name, {
+          permanent: true,
+          direction: "center",
+          className: "country-label",
+          interactive: false,
+          opacity: 1,
+        });
+        (layer as any).closeTooltip?.();
+      }}
+    />
+  );
+}
+
+// ── Main map ─────────────────────────────────────────────────────────────────
 export default function WorldMap({ showBases, showCommitments, activeCommitments }: Props) {
-  const [geoData, setGeoData] = useState<GeoJsonObject | null>(null);
+  const [geoState, setGeoState] = useState<GeoJsonObject | null>(null);
 
   useEffect(() => {
     fetch("https://raw.githubusercontent.com/holtzy/D3-graph-gallery/master/DATA/world.geojson")
       .then((r) => r.json())
-      .then(setGeoData);
+      .then(setGeoState);
   }, []);
 
   const filledCountries = getFilledCountries(showCommitments, activeCommitments);
@@ -122,7 +156,7 @@ export default function WorldMap({ showBases, showCommitments, activeCommitments
       center={[20, 0]}
       zoom={2.5}
       minZoom={2}
-      maxZoom={8}
+      maxZoom={9}
       style={{ height: "100%", width: "100%", background: "#cbd5e1" }}
       worldCopyJump={false}
     >
@@ -132,19 +166,20 @@ export default function WorldMap({ showBases, showCommitments, activeCommitments
         opacity={0}
       />
 
-      <ShadowFilter />
+      <ContinentShadow />
 
-      {geoData && (
+      {/* Country fill + borders */}
+      {geoState && (
         <GeoJSON
           key={geoKey}
-          data={geoData}
+          data={geoState}
           style={(feature) => countryStyle(feature as Feature, filledCountries)}
           onEachFeature={(feature, layer) => {
             if (!showCommitments) return;
             const rawName = feature.properties?.ADMIN || feature.properties?.name || "";
             const name = rawName.toLowerCase();
             for (const [key] of filledCountries.entries()) {
-              if (name.includes(key) || key.includes(name)) {
+              if (name === key || name.includes(key) || key.includes(name)) {
                 const commitment = securityCommitments.find((c) =>
                   c.countries.some((cn) => cn.toLowerCase() === key)
                 );
@@ -162,36 +197,49 @@ export default function WorldMap({ showBases, showCommitments, activeCommitments
         />
       )}
 
+      {/* Country labels */}
+      <CountryLabels geoData={geoState} />
+
+      {/* Military bases */}
       {showBases &&
-        militaryBases.map((base, i) => (
-          <CircleMarker
-            key={i}
-            center={[base.lat, base.lng]}
-            radius={5}
-            pathOptions={{
-              fillColor: "#dc2626",
-              fillOpacity: 0.92,
-              color: "#450a0a",
-              weight: 1.2,
-            }}
-          >
-            <Popup>
-              <div className="text-sm">
-                <div className="font-bold text-red-700 mb-1">{base.name}</div>
-                <div className="text-gray-600">{base.country}</div>
-                {base.personnel && (
-                  <div className="text-gray-700 mt-1">
-                    ~{base.personnel.toLocaleString()} personnel
+        militaryBases.map((base, i) => {
+          const radius = base.prominent ? 7 : 5;
+          const color = base.withdrawn ? "#6b7280" : "#dc2626";
+          const borderColor = base.withdrawn ? "#374151" : "#450a0a";
+          const glowColor = base.withdrawn ? "none" : "rgba(220,38,38,0.4)";
+          return (
+            <CircleMarker
+              key={i}
+              center={[base.lat, base.lng]}
+              radius={radius}
+              pathOptions={{
+                fillColor: color,
+                fillOpacity: base.withdrawn ? 0.5 : 0.92,
+                color: borderColor,
+                weight: 1.2,
+              }}
+            >
+              <Popup>
+                <div className="text-sm">
+                  <div className={`font-bold mb-1 ${base.withdrawn ? "text-gray-500" : "text-red-700"}`}>
+                    {base.withdrawn && <span className="text-xs bg-gray-200 text-gray-600 px-1 rounded mr-1">WITHDRAWN</span>}
+                    {base.name}
                   </div>
-                )}
-                {base.notes && (
-                  <div className="text-gray-500 mt-1 italic text-xs">{base.notes}</div>
-                )}
-              </div>
-            </Popup>
-            <Tooltip sticky>{base.name}</Tooltip>
-          </CircleMarker>
-        ))}
+                  <div className="text-gray-600">{base.country}</div>
+                  {base.personnel && (
+                    <div className="text-gray-700 mt-1">
+                      ~{base.personnel.toLocaleString()} personnel
+                    </div>
+                  )}
+                  {base.notes && (
+                    <div className="text-gray-500 mt-1 italic text-xs">{base.notes}</div>
+                  )}
+                </div>
+              </Popup>
+              <Tooltip sticky>{base.name}{base.withdrawn ? " [WITHDRAWN]" : ""}</Tooltip>
+            </CircleMarker>
+          );
+        })}
     </MapContainer>
   );
 }
